@@ -54,12 +54,16 @@ class Lasso(Solver):
 
         def _projected(t):
             r = np.linalg.norm(ground_truth, ord=1)
+            # print(r)
             t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
+            # print(np.linalg.norm(t, ord=1))
             t = (proj(t.squeeze(), r)).reshape(-1,1)
+            # print(np.linalg.norm(t, ord=1)) 
+            # print("--------")
             return t
 
         # iterates!
-        log_loss = []
+        loss_matrix = []
         for step in range(self.max_iteration):
             theta_last = theta.copy()
             if self.iter_type == "lagrangian":
@@ -67,9 +71,9 @@ class Lasso(Solver):
             elif self.iter_type == "projected":
                 theta = _projected(theta)
             if ground_truth is not None:
-                log_loss.append(np.log10(np.linalg.norm(theta - ground_truth, ord=2) ** 2))
+                loss_matrix.append(np.linalg.norm(theta - ground_truth, ord=2) ** 2)
                 if step % 100 == 0:
-                    print(step, log_loss[-1])
+                    print(step, loss_matrix[-1])
             # if np.linalg.norm(theta-theta_last, ord=2) < self.terminate_condition:
             # if np.linalg.norm(theta - theta_last, ord=2) < self.terminate_condition:
             # if np.linalg.norm(theta - theta_last, ord=2) / np.linalg.norm(theta_last, ord=2)  < self.terminate_condition:
@@ -77,7 +81,7 @@ class Lasso(Solver):
             #     return theta, log_loss
         else:
             print("Max iteration, I quit.")
-            return theta, log_loss
+            return theta, loss_matrix
 
     def show_param(self):
         return [self.gamma, self.constraint_param]
@@ -93,6 +97,7 @@ class DistributedLasso(Lasso):
         # Initialize parameters we need
         r = np.linalg.norm(ground_truth, ord=1)
         N, d = X.shape
+        assert N % self.m == 0, "sample size {} is indivisible by {} nodes.".format(N, self.m)
         n = int(N / self.m)
         # Initialize iterates
         theta = 0.0 * np.ones((self.m, d))
@@ -129,23 +134,27 @@ class DistributedLasso(Lasso):
             con = self.w @ t
             for i in range(self.m):
                 t[i] = con[i]
-                # temp = np.expand_dims(t[i].copy(), axis=1)
                 # print(t[i].shape)
+                # print(t[i].shape)
+                # print(r)
+                # print(np.linalg.norm(t[i], ord=1))
                 t[i] = proj(t[i], r)
+                # print(np.linalg.norm(t[i], ord=1))
+                # print("-------")
             return t
         # iterates!
 
-        log_loss = []
+        loss_matrix = []
         for step in range(self.max_iteration):
             if verbose:
                 if step % 100 == 0 and step != 0:
                     if ground_truth is not None:
-                        print("{}/{}, log loss = {}".format(step, self.max_iteration, log_loss[-1]))
+                        print("{}/{}, loss = {}".format(step, self.max_iteration, loss_matrix[-1]))
                     else:
                         print("{}/{}".format(step, self.max_iteration))
             if ground_truth is not None:
                 "optimization error has bug here. shape of comparison is not consensus."
-                log_loss.append(np.log10(np.linalg.norm(theta - np.repeat(ground_truth.T, self.m, axis=0), ord=2) ** 2 / self.m))
+                loss_matrix.append(np.linalg.norm(theta - np.repeat(ground_truth.T, self.m, axis=0), ord=2) ** 2 / self.m)
             theta_last = theta.copy()
             if self.iter_type == "lagrangian":
                 theta = _lagrangian(theta)
@@ -162,19 +171,104 @@ class DistributedLasso(Lasso):
             #     return theta, log_loss
         else:
             print("Max iteration, I quit.")
-            return theta, log_loss
+            return theta, loss_matrix
+
+
+class LocalizedLasso(Lasso):
+    def __init__(self, max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting, m):
+        super(LocalizedLasso, self).__init__(max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting)
+        self.m = m
+
+    def fit(self, X, Y, ground_truth, verbose):
+        # Initialize parameters we need
+        r = np.linalg.norm(ground_truth, ord=1)
+        N, d = X.shape
+        assert N % self.m == 0, "sample size {} is indivisible by {} nodes.".format(N, self.m)
+        n = int(N / self.m)
+        # Initialize iterates
+        theta = 0.0 * np.ones((self.m, d))
+        # Block data
+        x = []
+        y = []
+        for i in range(self.m):
+            x.append(X[n * i:n * (i + 1), :])
+            y.append(Y[n * i:n * (i + 1), :])
+            D = []
+            E = []
+        # block value we need to use
+        for i in range(self.m):
+            D.append(x[i].T @ x[i])
+            E.append(y[i].T @ x[i])
+        max_eig = 0
+        for sth in D:
+            a, _ = np.linalg.eig(sth)
+            if np.max(a) > max_eig:
+                max_eig = np.max(a)
+        print("max_eig of X.T @ X")
+        print(max_eig)
+        beta = N * self.gamma / (max_eig * self.gamma + n)
+        # print(N/max_eig)
+        # define gradient methods
+
+        def _lagrangian(t):
+            raise NotImplementedError("not implemented lagrangian atc yet, check for distributed_optimization_atc(there exists error: should not contain projection)")
+
+        def _projected(t):
+            r = np.linalg.norm(ground_truth, ord=1)
+            for i in range(self.m):
+                t[i] = (t[i] - self.gamma / n * (-E[i] + t[i].T @ D[i]))
+            for i in range(self.m):
+                # t[i] = con[i]
+                # print(t[i].shape)
+                # print(t[i].shape)
+                # print(r)
+                # print(np.linalg.norm(t[i], ord=1))
+                t[i] = proj(t[i], r)
+                # print(np.linalg.norm(t[i], ord=1))
+                # print("-------")
+            return t
+        # iterates!
+
+        loss_matrix = []
+        for step in range(self.max_iteration):
+            if verbose:
+                if step % 100 == 0 and step != 0:
+                    if ground_truth is not None:
+                        print("{}/{}, loss = {}".format(step, self.max_iteration, loss_matrix[-1]))
+                    else:
+                        print("{}/{}".format(step, self.max_iteration))
+            if ground_truth is not None:
+                "optimization error has bug here. shape of comparison is not consensus."
+                loss_matrix.append(np.linalg.norm(theta - np.repeat(ground_truth.T, self.m, axis=0), ord=2) ** 2 / self.m)
+            theta_last = theta.copy()
+            if self.iter_type == "lagrangian":
+                theta = _lagrangian(theta)
+            elif self.iter_type == "projected":
+                theta = _projected(theta)
+            else:
+                raise NotImplementedError
+
+            # if np.linalg.norm(theta - theta_last, ord=2) < self.terminate_condition:
+            # if np.linalg.norm(theta - theta_last, ord=2) / np.linalg.norm(theta_last, ord=2) < self.terminate_condition:
+
+            # if np.max(np.linalg.norm(theta-theta_last, ord=2, axis=1)) < self.terminate_condition:
+            #     print("Early convergence at step {} with log loss {}, I quit.".format(step, log_loss[-1]))
+            #     return theta, log_loss
+        else:
+            print("Max iteration, I quit.")
+            return theta, loss_matrix
+
+
 
 class SolverLasso(Lasso):
     def fit(self, X, Y, ground_truth, verbose):
         clf = linear_model.Lasso(alpha=self.lmda, fit_intercept=False, max_iter=self.max_iteration)
         clf.fit(X, Y)
         theta = clf.coef_
-        log_loss = []
+        loss_matrix = []
         if ground_truth is not None:
-            print(theta.shape)
-            print(ground_truth.shape)
-            log_loss.append(np.log10(np.linalg.norm(theta - ground_truth.squeeze(), ord=2) ** 2))
-        return theta, log_loss
+            loss_matrix.append(np.linalg.norm(theta - ground_truth.squeeze(), ord=2) ** 2)
+        return theta, loss_matrix
 
 
 class SolverDistributedLasso(DistributedLasso):
@@ -200,7 +294,8 @@ class SolverDistributedLasso(DistributedLasso):
         clf = linear_model.Lasso(alpha=self.lmda / self.m * N / (N + self.m * d), fit_intercept=False, max_iter=self.max_iteration)
         clf.fit(X_tuta, Y_tuta)
         theta = clf.coef_
-        log_loss = []
+        loss_matrix = []
         if ground_truth is not None:
-            log_loss.append(np.log10(np.linalg.norm(theta - np.tile(np.squeeze(ground_truth), self.m), ord=2) ** 2 / self.m))
-        return theta, log_loss
+            loss_matrix.append(np.linalg.norm(theta - np.tile(np.squeeze(ground_truth), self.m), ord=2) ** 2 / self.m)
+        return theta, loss_matrix
+
