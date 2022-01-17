@@ -45,5 +45,3 @@ class ErodoRenyi:
                     return weighted_matrix
         else:
             raise MaxIterError("achieve max iteration without achieving target connectivity")
-
-

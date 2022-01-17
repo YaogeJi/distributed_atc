@@ -58,7 +58,7 @@ class Lasso(Solver):
             t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
             # print(np.linalg.norm(t, ord=1))
             t = (proj(t.squeeze(), r)).reshape(-1,1)
-            # print(np.linalg.norm(t, ord=1)) 
+            # print(np.linalg.norm(t, ord=1))
             # print("--------")
             return t
 
@@ -92,7 +92,7 @@ class DistributedLasso(Lasso):
         super(DistributedLasso, self).__init__(max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting)
         self.w = w
         self.m = self.w.shape[0]
-        
+
     def fit(self, X, Y, ground_truth, verbose):
         # Initialize parameters we need
         r = np.linalg.norm(ground_truth, ord=1)
@@ -125,8 +125,8 @@ class DistributedLasso(Lasso):
         # define gradient methods
 
         def _lagrangian(t):
-            raise NotImplementedError("not implemented lagrangian atc yet, check for distributed_optimization_atc(there exists error: should not contain projection)")     
- 
+            raise NotImplementedError("not implemented lagrangian atc yet, check for distributed_optimization_atc(there exists error: should not contain projection)")
+
         def _projected(t):
             r = np.linalg.norm(ground_truth, ord=1)
             for i in range(self.m):
@@ -162,10 +162,10 @@ class DistributedLasso(Lasso):
                 theta = _projected(theta)
             else:
                 raise NotImplementedError
-            
+
             # if np.linalg.norm(theta - theta_last, ord=2) < self.terminate_condition:
             # if np.linalg.norm(theta - theta_last, ord=2) / np.linalg.norm(theta_last, ord=2) < self.terminate_condition:
-            
+
             # if np.max(np.linalg.norm(theta-theta_last, ord=2, axis=1)) < self.terminate_condition:
             #     print("Early convergence at step {} with log loss {}, I quit.".format(step, log_loss[-1]))
             #     return theta, log_loss
@@ -259,7 +259,6 @@ class LocalizedLasso(Lasso):
             return theta, loss_matrix
 
 
-
 class SolverLasso(Lasso):
     def fit(self, X, Y, ground_truth, verbose):
         clf = linear_model.Lasso(alpha=self.lmda, fit_intercept=False, max_iter=self.max_iteration)
@@ -298,4 +297,3 @@ class SolverDistributedLasso(DistributedLasso):
         if ground_truth is not None:
             loss_matrix.append(np.linalg.norm(theta - np.tile(np.squeeze(ground_truth), self.m), ord=2) ** 2 / self.m)
         return theta, loss_matrix
-
