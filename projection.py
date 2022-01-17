@@ -48,7 +48,7 @@ def test_proj():
     #     assert (np.linalg.norm(euclidean_proj_l1ball(v, b), ord=1) - l1_norm) <= 1e-5
     #     b = l1_norm / 2
     #     assert np.abs(np.linalg.norm(euclidean_proj_l1ball(v, b), ord=1) - b) <= 1e-5
-    
+
 
 if __name__ == "__main__":
     print("testing")

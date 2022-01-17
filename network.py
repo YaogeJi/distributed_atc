@@ -38,7 +38,6 @@ class ErodoRenyi:
                 eigenvalue, _ = np.linalg.eig(weighted_matrix)
                 sorted_eigenvalue = np.sort(np.abs(eigenvalue))
                 connectivity = sorted_eigenvalue[-2]
-                print(weighted_matrix)
                 print(connectivity)
                 if np.abs(connectivity - self.rho) < 0.001:
                     print("generating network succeed")
@@ -46,5 +45,3 @@ class ErodoRenyi:
                     return weighted_matrix
         else:
             raise MaxIterError("achieve max iteration without achieving target connectivity")
-
-
