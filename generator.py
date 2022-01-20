@@ -41,4 +41,4 @@ class Generator:
             min_stat_error = np.linalg.norm(theta_hat - np.squeeze(theta), ord=2) ** 2
             return X, Y, theta, optimal_lambda, min_stat_error
         else:
-            return X, Y, theta, False, False(base)
+            return X, Y, theta, False, False
