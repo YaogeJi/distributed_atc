@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from projection import euclidean_proj_l1ball as proj
+from projection import proj_l1ball as proj
 from sklearn import linear_model
 import scipy
 
@@ -38,8 +38,8 @@ class Lasso(Solver):
         # calculate value we need to use.
         C_1 = X.T @ X
         C_2 = X.T @ Y
-        a, _ = np.linalg.eig(C_1)
-        max_eig = np.max(a)
+        #  a, _ = np.linalg.eig(C_1)
+        # max_eig = np.max(a)
 
         # define gradient methods
         def _lagrangian(t):
@@ -57,7 +57,7 @@ class Lasso(Solver):
             # print(r)
             t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
             # print(np.linalg.norm(t, ord=1))
-            t = (proj(t.squeeze(), r)).reshape(-1,1)
+            t = proj(t, r)
             # print(np.linalg.norm(t, ord=1))
             # print("--------")
             return t
@@ -100,47 +100,20 @@ class DistributedLasso(Lasso):
         assert N % self.m == 0, "sample size {} is indivisible by {} nodes.".format(N, self.m)
         n = int(N / self.m)
         # Initialize iterates
-        theta = 0.0 * np.ones((self.m, d))
-        # Block data
-        x = []
-        y = []
-        for i in range(self.m):
-            x.append(X[n * i:n * (i + 1), :])
-            y.append(Y[n * i:n * (i + 1), :])
-            D = []
-            E = []
-        # block value we need to use
-        for i in range(self.m):
-            D.append(x[i].T @ x[i])
-            E.append(y[i].T @ x[i])
-        max_eig = 0
-        for sth in D:
-            a, _ = np.linalg.eig(sth)
-            if np.max(a) > max_eig:
-                max_eig = np.max(a)
-        print("max_eig of X.T @ X")
-        print(max_eig)
-        beta = N * self.gamma / (max_eig * self.gamma + n)
-        # print(N/max_eig)
-        # define gradient methods
-
+        theta = 0.0 * np.ones((self.m, d, 1))
+        x = X.reshape(self.m, n, d)
+        y = Y.reshape(self.m, n, 1)
+        # D = x.transpose(0,2,1) @ x
+        # E = x.transpose(0,2,1) @ y
         def _lagrangian(t):
             raise NotImplementedError("not implemented lagrangian atc yet, check for distributed_optimization_atc(there exists error: should not contain projection)")
 
         def _projected(t):
             r = np.linalg.norm(ground_truth, ord=1)
-            for i in range(self.m):
-                t[i] = (t[i] - self.gamma / n * (-E[i] + t[i].T @ D[i]))
-            con = self.w @ t
-            for i in range(self.m):
-                t[i] = con[i]
-                # print(t[i].shape)
-                # print(t[i].shape)
-                # print(r)
-                # print(np.linalg.norm(t[i], ord=1))
-                t[i] = proj(t[i], r)
-                # print(np.linalg.norm(t[i], ord=1))
-                # print("-------")
+            t = t - self.gamma / n * x.transpose(0,2,1) @ (x @ t - y)
+            # print(self.w)
+            t = self.w @ t.squeeze()
+            t = (proj(t, r)).reshape(self.m,d,1)
             return t
         # iterates!
 
@@ -154,7 +127,7 @@ class DistributedLasso(Lasso):
                         print("{}/{}".format(step, self.max_iteration))
             if ground_truth is not None:
                 "optimization error has bug here. shape of comparison is not consensus."
-                loss_matrix.append(np.linalg.norm(theta - np.repeat(ground_truth.T, self.m, axis=0), ord=2) ** 2 / self.m)
+                loss_matrix.append(np.linalg.norm(theta.squeeze() - np.repeat(ground_truth.T, self.m, axis=0), ord=2) ** 2 / self.m)
             theta_last = theta.copy()
             if self.iter_type == "lagrangian":
                 theta = _lagrangian(theta)
@@ -199,14 +172,14 @@ class LocalizedLasso(Lasso):
         for i in range(self.m):
             D.append(x[i].T @ x[i])
             E.append(y[i].T @ x[i])
-        max_eig = 0
-        for sth in D:
-            a, _ = np.linalg.eig(sth)
-            if np.max(a) > max_eig:
-                max_eig = np.max(a)
-        print("max_eig of X.T @ X")
-        print(max_eig)
-        beta = N * self.gamma / (max_eig * self.gamma + n)
+        # max_eig = 0
+        # for sth in D:
+        #     a, _ = np.linalg.eig(sth)
+        #    if np.max(a) > max_eig:
+        #        max_eig = np.max(a)
+        # print("max_eig of X.T @ X")
+        # print(max_eig)
+        # beta = N * self.gamma / (max_eig * self.gamma + n)
         # print(N/max_eig)
         # define gradient methods
 
