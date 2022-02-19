@@ -2,13 +2,13 @@
 
 exp_name="connectivity_accuracy_dilemma"
 
-N=400
+N=25600
 d=400
 s=5
 solver_mode="centralized"
 iter_type="projected"
-gamma_group="0.7 0.08789"
-total=1
+gamma_group="0.08789"
+total=30
 
 for gamma in $gamma_group
 do

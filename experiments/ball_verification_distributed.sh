@@ -1,19 +1,19 @@
 #!/bin/bash
 
-exp_name="connectivity_accuracy_dilemma"
+exp_name="ball_verification"
 
-N=680
-d=12800
-s=9
+N_group="240"
+d=400
+s=5
 m=20
-p=0.2
-rho_group="0.95"
+p=0.8
+rho=0.2
 solver_mode="distributed"
 iter_type="projected"
 gamma=0.08789
 total=30
 
-for rho in $rho_group
+for N in $N_group
 do
     num_exp=0
     while [ $num_exp -ne $total ]
