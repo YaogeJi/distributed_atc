@@ -84,10 +84,11 @@ class Lasso(Solver):
 
 
 class DistributedLasso(Lasso):
-    def __init__(self, max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting, w):
+    def __init__(self, max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting, w, communication):
         super(DistributedLasso, self).__init__(max_iteration, gamma, terminate_condition, iter_type, constraint_param, projecting)
         self.w = w
         self.m = self.w.shape[0]
+        self.communication = communication
 
     def fit(self, X, Y, ground_truth, verbose):
         # Initialize parameters we need
@@ -108,7 +109,7 @@ class DistributedLasso(Lasso):
             r = np.linalg.norm(ground_truth, ord=1)
             t = t - self.gamma / n * x.transpose(0,2,1) @ (x @ t - y)
             # print(self.w)
-            t = self.w @ t.squeeze(axis=2)
+            t = self.w ** self.communication @ t.squeeze(axis=2)
             t = (proj(t, r)).reshape(self.m,d,1)
             return t
         # iterates!
