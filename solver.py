@@ -34,32 +34,28 @@ class Lasso(Solver):
         loss = []
         N, d = X.shape
         # initialize iterates
-        theta = 0.0 * np.ones((d, 1))
+        theta = 0.0 * np.ones((1, d))
         # calculate value we need to use.
-        C_1 = X.T @ X
-        C_2 = X.T @ Y
+        # C_1 = X.T @ X
+        # C_2 = X.T @ Y
         #  a, _ = np.linalg.eig(C_1)
         # max_eig = np.max(a)
 
         # define gradient methods
-        def _lagrangian(t):
-            t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
-            temp = np.sign(t) * np.clip(np.abs(t) - self.gamma * self.lmda, 0, None)
-            if not self.projecting or np.linalg.norm(temp, ord=1) <= r:
-                t = temp
-            else:
-                raise ValueError
-                t = proj(t, r)
-            return t
+        # def _lagrangian(t):
+        #     t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
+        #     temp = np.sign(t) * np.clip(np.abs(t) - self.gamma * self.lmda, 0, None)
+        #     if not self.projecting or np.linalg.norm(temp, ord=1) <= r:
+        #         t = temp
+        #     else:
+        #         raise ValueError
+        #         t = proj(t, r)
+        #     return t
 
         def _projected(t):
             r = np.linalg.norm(ground_truth, ord=1)
-            # print(r)
-            t = t - self.gamma * (1 / N * (C_1 @ t - C_2))
-            # print(np.linalg.norm(t, ord=1))
+            t = t - self.gamma / N * (t @ X.T - Y.T) @ X
             t = proj(t, r)
-            # print(np.linalg.norm(t, ord=1))
-            # print("--------")
             return t
 
         # iterates!
@@ -71,7 +67,7 @@ class Lasso(Solver):
             elif self.iter_type == "projected":
                 theta = _projected(theta)
             if ground_truth is not None:
-                loss_matrix.append(np.linalg.norm(theta - ground_truth, ord=2) ** 2)
+                loss_matrix.append(np.linalg.norm(theta - ground_truth.T, ord=2) ** 2)
                 if step % 100 == 0:
                     print(step, loss_matrix[-1])
             # if np.linalg.norm(theta-theta_last, ord=2) < self.terminate_condition:
@@ -112,7 +108,7 @@ class DistributedLasso(Lasso):
             r = np.linalg.norm(ground_truth, ord=1)
             t = t - self.gamma / n * x.transpose(0,2,1) @ (x @ t - y)
             # print(self.w)
-            t = self.w @ t.squeeze()
+            t = self.w @ t.squeeze(axis=2)
             t = (proj(t, r)).reshape(self.m,d,1)
             return t
         # iterates!
